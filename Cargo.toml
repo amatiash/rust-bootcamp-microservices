@@ -19,11 +19,12 @@ path = "src/health-check-service/main.rs"
 
 [dependencies]
 tonic = "0.13.1" # used by all
-prost = "0.14.1" # used by all
+prost = "0.13.5" # used by all - matching tonic version
 tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "time"] } # used by all
 uuid = { version = "1.2", features = ["v4"] } # used by auth and health-check services
 pbkdf2 = { version = "0.12", features = ["simple"] } # used by auth service
-rand_core = { version = "0.9.3", features = ["std"] } # used by auth service
+rand_core = { version = "0.6.4", features = ["std"] } # used by auth service
+rand = "0.8" # used by auth service for secure random number generation
 clap = { version = "4.2", features = ["derive"] } # used by client
 
 [build-dependencies]

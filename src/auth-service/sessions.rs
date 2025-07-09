@@ -14,15 +14,18 @@ pub struct SessionsImpl {
 
 impl Sessions for SessionsImpl {
     fn create_session(&mut self, user_uuid: &str) -> String {
-        let session: String = todo!(); // Create a new session using Uuid::new_v4().
+        let session: String = Uuid::new_v4().to_string(); // Create a new session using Uuid::new_v4().
 
-        // TODO: Insert session into `uuid_to_session`.
+        // Insert session into `uuid_to_session`.
+        self.uuid_to_session
+            .insert(user_uuid.to_string(), session.clone());
 
         session
     }
 
     fn delete_session(&mut self, user_uuid: &str) {
-        // TODO: Delete session from `uuid_to_session`.
+        // Delete session from `uuid_to_session`.
+        self.uuid_to_session.remove(user_uuid);
     }
 }
 
@@ -36,7 +39,10 @@ mod tests {
         assert_eq!(session_service.uuid_to_session.len(), 0);
         let session = session_service.create_session("123456");
         assert_eq!(session_service.uuid_to_session.len(), 1);
-        assert_eq!(session_service.uuid_to_session.get("123456").unwrap(), &session);
+        assert_eq!(
+            session_service.uuid_to_session.get("123456").unwrap(),
+            &session
+        );
     }
 
     #[test]
