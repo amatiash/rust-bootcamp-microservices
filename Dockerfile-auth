@@ -1,4 +1,4 @@
-FROM rust:1.88.0-alpine3.22 AS chef
+FROM --platform=$BUILDPLATFORM rust:1.88.0-alpine3.22 AS chef
 USER root
 RUN apk add --no-cache musl-dev & cargo install cargo-chef
 WORKDIR /rust-bootcamp-microservices
@@ -17,7 +17,7 @@ COPY . .
 RUN cargo build --release --bin auth
 
 # We do not need the Rust toolchain to run the binary!
-FROM debian:buster-slim AS runtime
+FROM --platform=$BUILDPLATFORM debian:buster-slim AS runtime
 WORKDIR /rust-bootcamp-microservices
 COPY --from=builder /rust-bootcamp-microservices/target/release/auth /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/auth"]

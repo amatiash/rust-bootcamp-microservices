@@ -1,19 +1,22 @@
-version: "3.9"
 services:
   health-check:
-    image: letsgetrusty/health-check
     build:
       context: .
       dockerfile: Dockerfile-health
+      platforms:
+        - linux/arm64/v8
+        - linux/amd64
     restart: "always"
     depends_on:
       auth:
         condition: service_started
   auth:
-    image: letsgetrusty/auth
     build:
       context: .
       dockerfile: Dockerfile-auth
+      platforms:
+        - linux/arm64/v8
+        - linux/amd64
     restart: "always"
     ports:
       - "50051:50051"
