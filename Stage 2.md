@@ -78,7 +78,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-COPY --from=planner /microservice-project/recipe.json recipe.json
+COPY --from=planner /rust-bootcamp-microservices/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
@@ -91,8 +91,8 @@ Then we run `cargo-chef`, install `protoc`, and build the service  in release mo
 
 ```docker
 FROM debian:buster-slim AS runtime
-WORKDIR /microservice-project
-COPY --from=builder /microservice-project/target/release/auth /usr/local/bin
+WORKDIR /rust-bootcamp-microservices
+COPY --from=builder /rust-bootcamp-microservices/target/release/auth /usr/local/bin
 ENTRYPOINT ["/usr/local/bin/auth"]
 ```
 
@@ -232,7 +232,7 @@ To setup continuous deployment follow these steps:
     - __Image:__ Ubuntu 22.10 x64
     - __Size:__ Shared CPU / Basic / Regular SSD
     - __Authentication Method:__ Password
-    - __Hostname:__ rust-microservice-project
+    - __Hostname:__ rust-bootcamp-microservices
     ---
     __NOTE:__ Make sure to save the Droplet's password somewhere safe. We will use it in following steps.
 
@@ -357,11 +357,11 @@ To setup continuous deployment follow these steps:
         You should see 2 containers running. Example output:
 
         ```bash
-        root@rust-microservice-project:~# docker ps
+        root@rust-bootcamp-microservices:~# docker ps
         CONTAINER ID   IMAGE                       COMMAND                  CREATED      STATUS        PORTS                                           NAMES
         8805358e487d   letsgetrusty/health-check   "/usr/local/bin/heal…"   4 days ago   Up 4 days                                                     root_health-check_1
         a18f0935f7bb   letsgetrusty/auth           "/usr/local/bin/auth"    4 days ago   Up 17 hours   0.0.0.0:50051->50051/tcp, :::50051->50051/tcp   root_auth_1
-        root@rust-microservice-project:~#
+        root@rust-bootcamp-microservices:~#
         ```
 
 7. Connect to your droplet

@@ -1,5 +1,5 @@
 [package]
-name = "microservice-project"
+name = "rust-bootcamp-microservices"
 version = "0.1.0"
 edition = "2024"
 

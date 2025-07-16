@@ -83,7 +83,7 @@ __Project setup__
 
 To start this project follow these steps:
 
-1. Create a new Rust project by running `cargo new microservice-project`. This is going to be the mono-repo where the microservices and client are stored.
+1. Create a new Rust project by running `cargo new rust-bootcamp-microservices`. This is going to be the mono-repo where the microservices and client are stored.
 2. Create a Github repository and add it as the remote repository for the Rust project you created in the previous step.
 3. Replace the contents of your Rust project with the files/folders in Step 1.
 4. Install protoc: https://grpc.io/docs/protoc-installation/
