@@ -411,16 +411,24 @@ Railway is a Platform-as-a-Service that automatically deploys your Docker applic
    - Choose your rust-bootcamp-microservices repository
    - Railway will automatically detect your `docker-compose.yaml` and deploy both services
 
-3. **Configure Port (if needed)**
+3. **Configure Deployment Trigger (Optional)**
+   - By default, Railway deploys on every push to master
+   - For production deployments, you can configure it to deploy only on releases:
+     - Go to your service settings in Railway
+     - Under "Source", click "Configure"
+     - Change "Branch" to "Deploy on Release" or "Deploy on Tag"
+     - Now Railway will only deploy when you create a GitHub release
+
+4. **Configure Port (if needed)**
    - Railway automatically assigns public URLs to your services
    - The auth service will be accessible via the Railway-provided URL
    - No need to manage IP addresses or ports manually
 
-4. **Get Your Service URL**
+5. **Get Your Service URL**
    - In Railway dashboard, click on your auth service
    - Copy the public URL (e.g., `https://your-auth-service.up.railway.app`)
 
-5. **Test Connection**
+6. **Test Connection**
    - Update your client connection to use the Railway URL:
    ```bash
    AUTH_SERVICE_URL=https://your-auth-service.up.railway.app cargo run --bin client
