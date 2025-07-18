@@ -389,6 +389,53 @@ To setup continuous deployment follow these steps:
 
     Replace `YOUR_EC2_PUBLIC_IP` with your EC2 instance's public IP address.
 
+### Step 3 Alternative - Railway Deployment (Simplified)
+
+__Setting up continuous deployment with Railway__
+
+***
+THIS IS A SIMPLER ALTERNATIVE TO THE AWS EC2 APPROACH ABOVE. RAILWAY OFFERS A FREE TIER THAT'S PERFECT FOR TESTING.
+***
+
+Railway is a Platform-as-a-Service that automatically deploys your Docker applications with minimal configuration.
+
+**Steps:**
+
+1. **Create Railway Account**
+   - Go to https://railway.app/
+   - Sign up with your GitHub account
+
+2. **Deploy Your Project**
+   - Click "New Project" in Railway dashboard
+   - Select "Deploy from GitHub repo"
+   - Choose your rust-bootcamp-microservices repository
+   - Railway will automatically detect your `docker-compose.yaml` and deploy both services
+
+3. **Configure Port (if needed)**
+   - Railway automatically assigns public URLs to your services
+   - The auth service will be accessible via the Railway-provided URL
+   - No need to manage IP addresses or ports manually
+
+4. **Get Your Service URL**
+   - In Railway dashboard, click on your auth service
+   - Copy the public URL (e.g., `https://your-auth-service.up.railway.app`)
+
+5. **Test Connection**
+   - Update your client connection to use the Railway URL:
+   ```bash
+   AUTH_SERVICE_URL=https://your-auth-service.up.railway.app cargo run --bin client
+   ```
+
+**Advantages:**
+- No manual server setup or SSH required
+- Automatic deployments from GitHub pushes
+- Built-in HTTPS and domain management
+- Zero configuration Docker deployment
+
+**That's it!** Railway handles all the infrastructure, Docker building, and deployment automatically. Every time you push to your GitHub repository, Railway will automatically rebuild and redeploy your services.
+
+---
+
 ## Final Note
 
 Congratulations! You have built fully functioning microservices app in Rust!
