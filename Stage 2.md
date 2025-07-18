@@ -217,36 +217,49 @@ After adding `.github/workflow/prod.yml` to your repository and pushing the chan
 
 __Setting up continuous deployment__
 
-***
-THIS STEP IS OPTIONAL BECAUSE IT REQUIRES ABOUT $5 USD TO COMPLETE. YOU WILL HAVE TO PAY DIGITAL OCEAN TO SPIN UP A DROPLET.
-***
-
 To setup continuous deployment follow these steps:
 
-1. Create a DigitalOcean account: https://www.digitalocean.com/
+1. Create an AWS account: https://aws.amazon.com/
 
-2. Create a Digital Ocean droplet. The config I used is listed below but feel free to use your own (*Make sure to use `Password` as the authentication method!*).
+2. Create an AWS EC2 instance. Follow these steps (*Make sure to use `Password` as the authentication method!*):
 
-    - __Region:__ New York
-    - __Data center:__ NYC 1
-    - __Image:__ Ubuntu 22.10 x64
-    - __Size:__ Shared CPU / Basic / Regular SSD
-    - __Authentication Method:__ Password
-    - __Hostname:__ rust-bootcamp-microservices
+    - Go to the EC2 Dashboard in the AWS Management Console
+    - Click "Launch Instance"
+    - __Name:__ rust-bootcamp-microservices
+    - __Application and OS Images:__ Ubuntu Server 22.04 LTS (HVM), SSD Volume Type
+    - __Instance type:__ t2.micro
+    - __Key pair:__ Create new key pair or proceed without a key pair
+    - __Network settings:__ 
+        - Create security group or use existing
+        - Allow SSH traffic from anywhere (0.0.0.0/0)
+        - Add custom TCP rule for port 50051 from anywhere (0.0.0.0/0)
+    - __Configure storage:__ 8 GiB gp2
+    - __Advanced details:__ 
+        - User data (add this script to set up password authentication):
+        ```bash
+        #!/bin/bash
+        echo 'ubuntu:YourPasswordHere' | chpasswd
+        sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        systemctl restart sshd
+        ```
+        Replace `YourPasswordHere` with a secure password.
+    - Click "Launch instance"
     ---
-    __NOTE:__ Make sure to save the Droplet's password somewhere safe. We will use it in following steps.
+    __NOTE:__ Make sure to save the instance password you set in the user data script. We will use it in following steps. Also note down the public IP address of your instance.
 
-3. Configure droplet
+3. Configure EC2 instance
 
-    Now you should have a machine in the cloud (droplet) which you can deploy to. Next we'll configure that droplet by following these steps:
+    Now you should have a machine in the cloud (EC2 instance) which you can deploy to. Next we'll configure that instance by following these steps:
 
-    - SSH into your droplet: https://docs.digitalocean.com/products/droplets/how-to/connect-with-ssh/ 
-    - Once connected to your droplet install docker and docker compose:
+    - SSH into your EC2 instance: `ssh ubuntu@YOUR_EC2_PUBLIC_IP`
+    - Once connected to your instance install docker and docker compose:
 
         ```bash
         sudo apt-get update
         sudo apt-get install docker.io
         sudo apt-get install docker-compose
+        sudo usermod -aG docker ubuntu
         ```
 
 4. Update GitHub workflow
@@ -300,29 +313,29 @@ To setup continuous deployment follow these steps:
         - name: Install sshpass
           run: sudo apt-get install sshpass
 
-        - name: Copy docker-compose.yml to droplet
-          run: sshpass -v -p ${{ secrets.DROPLET_PASSWORD }} scp -o StrictHostKeyChecking=no docker-compose.yaml root@${{ vars.DROPLET_IP }}:~
+        - name: Copy docker-compose.yml to EC2 instance
+          run: sshpass -v -p ${{ secrets.EC2_PASSWORD }} scp -o StrictHostKeyChecking=no docker-compose.yaml ubuntu@${{ vars.EC2_IP }}:~
     ```
-    Next we install `sshpass` to help manage ssh sessions. Then use `scp` to transfer a copy of `docker-compose.yaml` to our droplet. This single file contains all the information needed to build and run our Dockerized app.
+    Next we install `sshpass` to help manage ssh sessions. Then use `scp` to transfer a copy of `docker-compose.yaml` to our EC2 instance. This single file contains all the information needed to build and run our Dockerized app.
 
     ```yaml
         - name: Deploy
           uses: appleboy/ssh-action@master
           with:
-            host: ${{ vars.DROPLET_IP }}
-            username: root
-            password: ${{ secrets.DROPLET_PASSWORD }}
+            host: ${{ vars.EC2_IP }}
+            username: ubuntu
+            password: ${{ secrets.EC2_PASSWORD }}
             script: |
             cd ~
             docker-compose down
             docker-compose pull
             docker-compose up -d
     ```
-    Finally we ssh into our droplet and deploy the docker containers.
+    Finally we ssh into our EC2 instance and deploy the docker containers.
 
 5. Update Github Secrets & Variables
 
-    You may have noticed that the new `.github/workflow/prod.yml` file has some variables in it (ex: `vars.DROPLET_IP` and `secrets.DROPLET_PASSWORD`). These secrets & variables will need to be defined inside your GitHub repo for the workflow to succeed.
+    You may have noticed that the new `.github/workflow/prod.yml` file has some variables in it (ex: `vars.EC2_IP` and `secrets.EC2_PASSWORD`). These secrets & variables will need to be defined inside your GitHub repo for the workflow to succeed.
 
     Secrets are encrypted variables that you can create for a repository. Secrets are available to use in GitHub Actions workflows.
 
@@ -333,47 +346,48 @@ To setup continuous deployment follow these steps:
     4. Add the following secrets
       - `DOCKER_USERNAME` - Your Docker Hub username
       - `DOCKER_PASSWORD` - Your Docker Hub password
-      - `DO_TOKEN` - Your Digital Ocean API token. Create a new token by logging into Digital Ocean, clicking on `API` in the left side-panel and then clicking `Generate New Token`. 
-      - `DROPLET_PASSWORD` - You droplet password
+      - `AWS_ACCESS_KEY_ID` - Your AWS access key (create in IAM if needed)
+      - `AWS_SECRET_ACCESS_KEY` - Your AWS secret access key
+      - `EC2_PASSWORD` - The password you set for the ubuntu user in the user data script
     
         ![Github Secrets](gh_secrets.png)
 
     Now that the secrets are defined we will add one regular variable:
 
     1. Click on the `Variables` tab in GitHub
-    2. Create a new variable called `DROPLET_IP` and set the value to your droplet's IP address.
+    2. Create a new variable called `EC2_IP` and set the value to your EC2 instance's public IP address.
 
         ![Github Variables](gh_variables.png)
 
     After adding these secrets/variables you should be able to push your updated `.github/workflow/prod.yml` file to the `master` branch and have your project automatically deployed.
 
-6. Check droplet
+6. Check EC2 instance
 
     After the GitHub workflow finishes deploying your project, check that your app is running by following these steps:
 
-    1. SSH into your droplet https://docs.digitalocean.com/products/droplets/how-to/connect-with-ssh/
+    1. SSH into your EC2 instance: `ssh ubuntu@YOUR_EC2_PUBLIC_IP`
     2. Run `docker ps` to see which containers are up
 
         You should see 2 containers running. Example output:
 
         ```bash
-        root@rust-bootcamp-microservices:~# docker ps
+        ubuntu@rust-bootcamp-microservices:~$ docker ps
         CONTAINER ID   IMAGE                       COMMAND                  CREATED      STATUS        PORTS                                           NAMES
-        8805358e487d   letsgetrusty/health-check   "/usr/local/bin/heal…"   4 days ago   Up 4 days                                                     root_health-check_1
-        a18f0935f7bb   letsgetrusty/auth           "/usr/local/bin/auth"    4 days ago   Up 17 hours   0.0.0.0:50051->50051/tcp, :::50051->50051/tcp   root_auth_1
-        root@rust-bootcamp-microservices:~#
+        8805358e487d   letsgetrusty/health-check   "/usr/local/bin/heal…"   4 days ago   Up 4 days                                                     ubuntu_health-check_1
+        a18f0935f7bb   letsgetrusty/auth           "/usr/local/bin/auth"    4 days ago   Up 17 hours   0.0.0.0:50051->50051/tcp, :::50051->50051/tcp   ubuntu_auth_1
+        ubuntu@rust-bootcamp-microservices:~$
         ```
 
-7. Connect to your droplet
+7. Connect to your EC2 instance
 
-    Finally use your local client to connect to the auth service running in your droplet.
+    Finally use your local client to connect to the auth service running in your EC2 instance.
 
     Run the following command in the root of your project folder:
     ```bash
-    AUTH_SERVICE_IP=555.555.555.55 cargo run --bin client
+    AUTH_SERVICE_IP=YOUR_EC2_PUBLIC_IP cargo run --bin client
     ```
 
-    Replace `555.555.555.55` with your droplets IP address.
+    Replace `YOUR_EC2_PUBLIC_IP` with your EC2 instance's public IP address.
 
 ## Final Note
 
