@@ -405,42 +405,66 @@ Railway is a Platform-as-a-Service that automatically deploys your Docker applic
    - Go to https://railway.app/
    - Sign up with your GitHub account
 
-2. **Deploy Your Project**
+2. **Create Railway Configuration Files**
+   
+   Railway needs specific configuration files to properly deploy Docker-based microservices. Create these files in your project root:
+   
+   **Create `railway.json` for the auth service:**
+   ```json
+   {
+     "$schema": "https://railway.app/railway.schema.json",
+     "build": {
+       "builder": "DOCKERFILE",
+       "dockerfilePath": "Dockerfile-auth"
+     },
+     "deploy": {
+       "startCommand": "/usr/local/bin/auth",
+       "restartPolicyType": "ON_FAILURE",
+       "restartPolicyMaxRetries": 10
+     }
+   }
+   ```
+   
+   **Create `railway-health.json` for the health-check service:**
+   ```json
+   {
+     "$schema": "https://railway.app/railway.schema.json",
+     "build": {
+       "builder": "DOCKERFILE",
+       "dockerfilePath": "Dockerfile-health"
+     },
+     "deploy": {
+       "startCommand": "/usr/local/bin/health-check",
+       "restartPolicyType": "ON_FAILURE",
+       "restartPolicyMaxRetries": 10
+     }
+   }
+   ```
+
+3. **Deploy the Auth Service**
    - Click "New Project" in Railway dashboard
    - Select "Deploy from GitHub repo"
    - Choose your rust-bootcamp-microservices repository
-   - Railway will automatically detect your `docker-compose.yaml` and deploy both services
+   - Railway will use the `railway.json` file to deploy the auth service with Docker
+   - Wait for the deployment to complete and note the service URL
 
-3. **Configure Deployment Trigger (Optional)**
-   - By default, Railway deploys on every push to master
-   - For production deployments, you can configure it to deploy only on releases:
-     - Go to your service settings in Railway
-     - Under "Source", click "Configure"
-     - Change "Branch" to "Deploy on Release" or "Deploy on Tag"
-     - Now Railway will only deploy when you create a GitHub release
+4. **Deploy the Health-Check Service**
+   - In the same Railway project, click "New Service"
+   - Select "GitHub Repo" and choose the same repository
+   - In the service settings, specify `railway-health.json` as the configuration file
+   - Railway will deploy the health-check service as a separate container
 
-4. **Configure Port (if needed)**
-   - Railway automatically assigns public URLs to your services
-   - The auth service will be accessible via the Railway-provided URL
-   - No need to manage IP addresses or ports manually
-
-5. **Get Your Service URL**
-   - In Railway dashboard, click on your auth service
-   - Copy the public URL (e.g., `https://your-auth-service.up.railway.app`)
-
-6. **Test Connection**
-   - Update your client connection to use the Railway URL:
-   ```bash
-   AUTH_SERVICE_URL=https://your-auth-service.up.railway.app cargo run --bin client
-   ```
-
-**Advantages:**
-- No manual server setup or SSH required
-- Automatic deployments from GitHub pushes
-- Built-in HTTPS and domain management
-- Zero configuration Docker deployment
-
-**That's it!** Railway handles all the infrastructure, Docker building, and deployment automatically. Every time you push to your GitHub repository, Railway will automatically rebuild and redeploy your services.
+5. **Configure Inter-Service Communication**
+   
+   The health-check service needs to communicate with the auth service using Railway's internal networking:
+   
+   - Go to your **health-check service** in Railway dashboard
+   - Click on the "Variables" tab
+   - Add a new environment variable:
+     - **Name:** `AUTH_SERVICE_HOST_NAME`
+     - **Value:** `your-auth-service-name.railway.internal` (use the internal Railway URL)
+   
+   Railway's internal networking automatically handles port mapping and service discovery between services in the same project.
 
 ---
 
