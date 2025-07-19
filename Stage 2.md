@@ -252,15 +252,76 @@ To setup continuous deployment follow these steps:
 
     Now you should have a machine in the cloud (EC2 instance) which you can deploy to. Next we'll configure that instance by following these steps:
 
-    - SSH into your EC2 instance: `ssh ubuntu@YOUR_EC2_PUBLIC_IP`
-    - Once connected to your instance install docker and docker compose:
+    **SSH Connection:**
+    
+    First, try to SSH into your EC2 instance:
+    ```bash
+    ssh ubuntu@YOUR_EC2_PUBLIC_IP
+    ```
 
-        ```bash
-        sudo apt-get update
-        sudo apt-get install docker.io
-        sudo apt-get install docker-compose
-        sudo usermod -aG docker ubuntu
-        ```
+    **If SSH connection fails with "Permission denied (publickey)":**
+    
+    The User data script may not have executed properly. Use EC2 Instance Connect to fix it:
+    
+    1. Go to your AWS EC2 Console
+    2. Select your instance and click "Connect"
+    3. Choose "EC2 Instance Connect" (browser-based SSH)
+    4. Click "Connect" to open a terminal in your browser
+    5. Run these commands to manually set up password authentication:
+
+    ```bash
+    # Set password for ubuntu user
+    sudo passwd ubuntu
+    # (enter your desired secure password when prompted)
+
+    # Edit SSH configuration
+    sudo nano /etc/ssh/sshd_config
+    ```
+
+    6. In the editor, find and modify these lines (uncomment and set as shown):
+    ```
+    PasswordAuthentication yes
+    PubkeyAuthentication no
+    ChallengeResponseAuthentication yes
+    UsePAM yes
+    ```
+
+    7. Save the file (Ctrl+X, then Y, then Enter in nano)
+
+    8. Restart SSH service:
+    ```bash
+    sudo systemctl restart ssh
+    ```
+
+    9. Now try SSH from your local machine:
+    ```bash
+    ssh ubuntu@YOUR_EC2_PUBLIC_IP
+    ```
+    
+    It should prompt for the password you just set.
+
+    **Install Docker and Docker Compose:**
+    
+    Once connected to your instance, install docker and docker compose:
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install docker.io
+    sudo apt-get install docker-compose
+    sudo usermod -aG docker ubuntu
+    ```
+
+    **Important:** Log out and log back in for Docker group membership to take effect:
+    ```bash
+    exit
+    ssh ubuntu@YOUR_EC2_PUBLIC_IP
+    ```
+
+    **Test Docker installation:**
+    ```bash
+    docker --version
+    docker-compose --version
+    ```
 
 4. Update GitHub workflow
 
