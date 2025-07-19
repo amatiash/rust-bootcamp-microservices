@@ -389,13 +389,15 @@ To setup continuous deployment follow these steps:
 
     Replace `YOUR_EC2_PUBLIC_IP` with your EC2 instance's public IP address.
 
-### Step 3 Alternative - Railway Deployment (Simplified)
+### Step 3 Alternative - Railway Deployment
 
 __Setting up continuous deployment with Railway__
 
 ***
 THIS IS A SIMPLER ALTERNATIVE TO THE AWS EC2 APPROACH ABOVE. RAILWAY OFFERS A FREE TIER THAT'S PERFECT FOR TESTING.
 ***
+
+**Important gRPC Limitation:** Railway's load balancers do not properly support external gRPC connections. You may experience "broken pipe" or connection errors when trying to connect your client directly to the deployed auth service. Railway's internal networking (service-to-service communication) works fine for gRPC, but external clients connecting through Railway's public URLs may face issues. For production gRPC applications, consider using a different service provider or implementing gRPC-Web for browser compatibility.
 
 Railway is a Platform-as-a-Service that automatically deploys your Docker applications with minimal configuration.
 
