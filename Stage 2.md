@@ -323,108 +323,130 @@ To setup continuous deployment follow these steps:
     docker-compose --version
     ```
 
-4. Update GitHub workflow
+4. Fix Docker compatibility issues
 
-    Next we will update our GitHub workflow to deploy the app anytime changes are pushed to master. 
-    
-    Copy over `.github/workflow/prod.yml` to your repository. Notice that now the workflow only runs when changes are pushed to master (not when creating PRs).
+    Before updating the GitHub workflow, we need to fix compatibility issues with older Docker versions on EC2:
 
-    Let's review the rest of the changes:
-
+    **Update `docker-compose.yaml`** - Remove the `platforms` section that's not supported by older Docker Compose:
     ```yaml
-        - name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v2
-
-        - name: Log in to Docker Hub
-          uses: docker/login-action@v2
-          with:
-            username: ${{ secrets.DOCKER_USERNAME }}
-            password: ${{ secrets.DOCKER_PASSWORD }}
-
-        - name: Build and push Docker images
-          uses: docker/bake-action@v2.3.0
-          with:
-            push: true
-            set: | # cache Docker layers between runs
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
+    services:
+      health-check:
+        build:
+          context: .
+          dockerfile: Dockerfile-health
+          # Remove platforms section
+        restart: "always"
+        depends_on:
+          auth:
+            condition: service_started
+      auth:
+        build:
+          context: .
+          dockerfile: Dockerfile-auth
+          # Remove platforms section
+        restart: "always"
+        ports:
+          - "50051:50051"
     ```
 
-    A few more steps were added to the `build` job. We now build and push the Docker images for our auth and health-check services to Docker Hub. This will allow the deploy step to pull the new images from Docker Hub.
+    **Update both `Dockerfile-auth` and `Dockerfile-health`** - Remove `--platform=$BUILDPLATFORM` flags:
+    ```dockerfile
+    # Change from:
+    FROM --platform=$BUILDPLATFORM rust:1.88.0-alpine3.22 AS chef
+    FROM --platform=$BUILDPLATFORM debian:buster-slim AS runtime
+    
+    # To:
+    FROM rust:1.88.0-alpine3.22 AS chef
+    FROM debian:buster-slim AS runtime
+    ```
+
+5. Update GitHub workflow
+
+    Update your `.github/workflows/prod.yml` file to deploy using local building (no Docker Hub needed). The workflow now only runs when changes are pushed to master (not on PRs).
 
     ```yaml
+    name: Build & Test
+
+    on:
+      push:
+        branches:
+          - master
+
+    jobs:
+      build:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Install protoc
+            uses: arduino/setup-protoc@v3
+          - name: Install Rust
+            uses: dtolnay/rust-toolchain@stable
+          - name: Cache dependencies
+            uses: actions/cache@v4
+            with:
+              path: |
+                ~/.cargo
+                target/
+              key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+              restore-keys: ${{ runner.os }}-cargo-
+          - name: Build and test code
+            run: |
+              cargo build --verbose
+              cargo test --verbose
+
       deploy:
         needs: build
         runs-on: ubuntu-latest
-
         steps:
-        - name: Checkout code
-          uses: actions/checkout@v2
-
-        - name: Log in to Docker Hub
-          uses: docker/login-action@v1
-          with:
-            username: ${{ secrets.DOCKER_USERNAME }}
-            password: ${{ secrets.DOCKER_PASSWORD }}
+          - name: Checkout code
+            uses: actions/checkout@v4
+          - name: Install sshpass
+            run: sudo apt-get install sshpass
+          - name: Copy project files to EC2
+            run: |
+              sshpass -p '${{ secrets.EC2_PASSWORD }}' scp -o StrictHostKeyChecking=no -r \
+                Dockerfile-auth Dockerfile-health docker-compose.yaml proto src Cargo.toml build.rs \
+                ubuntu@${{ vars.EC2_IP }}:~/rust-app/
+          - name: Deploy on EC2
+            run: |
+              sshpass -p '${{ secrets.EC2_PASSWORD }}' ssh -o StrictHostKeyChecking=no ubuntu@${{ vars.EC2_IP }} '
+                cd ~/rust-app &&
+                docker-compose down &&
+                docker-compose build &&
+                docker-compose up -d
+              '
     ```
 
-    A new `deploy` job has also been added. The first couple of steps checkout the source code and log into Docker Hub.
+    This approach:
+    - Copies source code to EC2 instead of using Docker Hub
+    - Builds Docker images directly on the server
+    - Simpler setup with no external registries needed
 
-    ```yaml
-        - name: Install sshpass
-          run: sudo apt-get install sshpass
+6. Update Github Secrets & Variables
 
-        - name: Copy docker-compose.yml to EC2 instance
-          run: sshpass -v -p ${{ secrets.EC2_PASSWORD }} scp -o StrictHostKeyChecking=no docker-compose.yaml ubuntu@${{ vars.EC2_IP }}:~
-    ```
-    Next we install `sshpass` to help manage ssh sessions. Then use `scp` to transfer a copy of `docker-compose.yaml` to our EC2 instance. This single file contains all the information needed to build and run our Dockerized app.
+    The workflow uses two variables: `secrets.EC2_PASSWORD` and `vars.EC2_IP`. These need to be defined in your GitHub repository.
 
-    ```yaml
-        - name: Deploy
-          uses: appleboy/ssh-action@master
-          with:
-            host: ${{ vars.EC2_IP }}
-            username: ubuntu
-            password: ${{ secrets.EC2_PASSWORD }}
-            script: |
-            cd ~
-            docker-compose down
-            docker-compose pull
-            docker-compose up -d
-    ```
-    Finally we ssh into our EC2 instance and deploy the docker containers.
-
-5. Update Github Secrets & Variables
-
-    You may have noticed that the new `.github/workflow/prod.yml` file has some variables in it (ex: `vars.EC2_IP` and `secrets.EC2_PASSWORD`). These secrets & variables will need to be defined inside your GitHub repo for the workflow to succeed.
-
-    Secrets are encrypted variables that you can create for a repository. Secrets are available to use in GitHub Actions workflows.
-
-    Add the required secrets by following these steps:
+    **Add required secrets:**
     1. Navigate to your repository on https://github.com/
     2. Click on the `Settings` tab
     3. In the left side-panel click `Secrets and variables` underneath the `Security` section and then click `Actions`.
-    4. Add the following secrets
-      - `DOCKER_USERNAME` - Your Docker Hub username
-      - `DOCKER_PASSWORD` - Your Docker Hub password
-      - `AWS_ACCESS_KEY_ID` - Your AWS access key (create in IAM if needed)
-      - `AWS_SECRET_ACCESS_KEY` - Your AWS secret access key
-      - `EC2_PASSWORD` - The password you set for the ubuntu user in the user data script
+    4. Add the following secret:
+      - `EC2_PASSWORD` - The password you set for the ubuntu user during EC2 setup
     
         ![Github Secrets](gh_secrets.png)
 
-    Now that the secrets are defined we will add one regular variable:
-
+    **Add required variables:**
     1. Click on the `Variables` tab in GitHub
     2. Create a new variable called `EC2_IP` and set the value to your EC2 instance's public IP address.
 
         ![Github Variables](gh_variables.png)
 
-    After adding these secrets/variables you should be able to push your updated `.github/workflow/prod.yml` file to the `master` branch and have your project automatically deployed.
+    After adding these, you can push changes to the `master` branch and they will automatically deploy to your EC2 instance.
 
-6. Check EC2 instance
+7. Check EC2 instance
 
-    After the GitHub workflow finishes deploying your project, check that your app is running by following these steps:
+    After the GitHub workflow finishes deploying your project, check that your app is running:
 
     1. SSH into your EC2 instance: `ssh ubuntu@YOUR_EC2_PUBLIC_IP`
     2. Run `docker ps` to see which containers are up
@@ -432,21 +454,43 @@ To setup continuous deployment follow these steps:
         You should see 2 containers running. Example output:
 
         ```bash
-        ubuntu@rust-bootcamp-microservices:~$ docker ps
-        CONTAINER ID   IMAGE                       COMMAND                  CREATED      STATUS        PORTS                                           NAMES
-        8805358e487d   letsgetrusty/health-check   "/usr/local/bin/heal…"   4 days ago   Up 4 days                                                     ubuntu_health-check_1
-        a18f0935f7bb   letsgetrusty/auth           "/usr/local/bin/auth"    4 days ago   Up 17 hours   0.0.0.0:50051->50051/tcp, :::50051->50051/tcp   ubuntu_auth_1
-        ubuntu@rust-bootcamp-microservices:~$
+        ubuntu@ip-172-31-23-14:~$ docker ps
+        CONTAINER ID   IMAGE                COMMAND                  CREATED      STATUS        PORTS                                           NAMES
+        8805358e487d   rust-app_health-check "/usr/local/bin/heal…"   4 days ago   Up 4 days                                                     rust-app_health-check_1
+        a18f0935f7bb   rust-app_auth        "/usr/local/bin/auth"    4 days ago   Up 17 hours   0.0.0.0:50051->50051/tcp, :::50051->50051/tcp   rust-app_auth_1
         ```
 
-7. Connect to your EC2 instance
+8. Test your deployed application
 
-    Finally use your local client to connect to the auth service running in your EC2 instance.
+    Use your local client to connect to the auth service running in your EC2 instance.
 
-    Run the following command in the root of your project folder:
+    **Create a new user:**
     ```bash
-    AUTH_SERVICE_IP=YOUR_EC2_PUBLIC_IP cargo run --bin client
+    AUTH_SERVICE_IP=YOUR_EC2_PUBLIC_IP cargo run --bin client -- sign-up --username testuser --password mypassword
     ```
+
+    You should see: `SignUpResponse { status_code: Success }`
+
+    **Sign in:**
+    ```bash
+    AUTH_SERVICE_IP=YOUR_EC2_PUBLIC_IP cargo run --bin client -- sign-in --username testuser --password mypassword
+    ```
+
+    You should see something like:
+    ```
+    SignInResponse { 
+      status_code: Success, 
+      user_uuid: "f6fd102e-bc8d-4c8d-94c9-5a9dd1bafb69", 
+      session_token: "e17bd9c1-ef33-4504-8c85-f0cd194fb1d6" 
+    }
+    ```
+
+    **Sign out (using the session token from sign-in):**
+    ```bash
+    AUTH_SERVICE_IP=YOUR_EC2_PUBLIC_IP cargo run --bin client -- sign-out --session-token YOUR_SESSION_TOKEN
+    ```
+
+    You should see: `SignOutResponse { status_code: Success }`
 
     Replace `YOUR_EC2_PUBLIC_IP` with your EC2 instance's public IP address.
 
